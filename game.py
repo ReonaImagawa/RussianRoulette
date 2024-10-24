@@ -30,7 +30,7 @@ def startHosting(server):
             thread = threading.Thread(target=handleClient, args=(con, addr))
             thread.start()
             print(f"{threading.active_count() - 1} active connection(s).")
-        if (threading.active_count() - 1) == 2: russianRoulette()
+        if (threading.active_count() - 1) == 2: buckshotRoulette()
 
 def disconnectClient(connection, addr):
     connection.send("/DISCONNECT".encode('utf-8'))
@@ -60,7 +60,7 @@ def sendMessage(computer, content):
     client.send(message)
 
 # Game
-def buckshotRoulette():
+def buckshotRoulette(client=None):
     match mode:
         case 'host':
             for user in connectedUsers:
@@ -71,7 +71,10 @@ def buckshotRoulette():
                 print(items)
                 user.send(pickle.dumps(items))
         case 'join':
-            pass
+            while True:
+                message = client.recv(2048)
+                if message == b'': pass
+                print(pickle.loads(message))
 
 
 # Main Menu
@@ -86,12 +89,11 @@ match mode:
         client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         client.connect((input("Enter the IP address of the server: "), 5050))
         sendMessage(client, "Hello")
+        buckshotRoulette(client)
         while True:
             message = client.recv(2048)
             if message == b'/DISCONNECT':
                 break
-            if message == b'': pass
-            print(pickle.loads(message))
         print("The requested server is full.")
     case 'host':
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

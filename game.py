@@ -87,7 +87,7 @@ match mode:
         client.connect((input("Enter the IP address of the server: "), 5050))
         sendMessage(client, "Hello")
         while True:
-            message = client.recv(1024)
+            message = client.recv(2048)
             if message == b'/DISCONNECT':
                 break
             if message == b'': pass

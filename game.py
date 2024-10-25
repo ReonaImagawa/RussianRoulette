@@ -1,11 +1,11 @@
 # Packages
-import socket, threading, os, random, pickle
+import socket, threading, os, random, pickle, time
 
 # Variables
 localHostname = socket.gethostname()
 socket.gethostbyname(localHostname)
-itemList = ['beer', 'burner phone', 'cigaratte', 'medicine', 'saw', 'inverter', 'magnifying glass']
-connectedUsers = []
+itemList = ['Beer', 'Burner Phone', 'Cigaratte', 'Medicine', 'Saw', 'Inverter', 'Magnifying Glass']
+connectedUsers, connectedAddrs = [], []
 
 # Functions
 def getIPAddress():
@@ -30,14 +30,15 @@ def startHosting(server):
             thread = threading.Thread(target=handleClient, args=(con, addr))
             thread.start()
             print(f"{threading.active_count() - 1} active connection(s).")
-        if (threading.active_count() - 1) == 2: buckshotRoulette()
+        if (threading.active_count() - 1) == 2: buckshotRoulette(server)
 
 def disconnectClient(connection, addr):
-    connection.send("/DISCONNECT".encode('utf-8'))
+    connection.send(pickle.dumps('/DISCONNECT'))
     connection.close()
 
 def handleClient(connection, addr):
     connectedUsers.append(connection)
+    connectedAddrs.append(f'{addr[0]}:{addr[1]}')
     print(f"[{addr[0]}] has joined the server.")
 
     connected = True
@@ -52,29 +53,45 @@ def handleClient(connection, addr):
     connection.close()
 
 def sendMessage(computer, content):
-    message = content.encode('utf-8')
-    msg_length = len(message)
-    send_length = str(msg_length).encode('utf-8')
-    send_length += b' ' * (2048 - len(send_length))
-    client.send(send_length)
-    client.send(message)
+    client.sendall(pickle.dumps(content))
+
+def showItems(items):
+    prefix = "Your" if items.startswith(f'{client.getsockname()[0]}:{client.getsockname()[1]}') else "Your Opponent's"
+    while '|items|' in items:
+            items = items[1:]
+    items = items.lstrip('|items|')
+    print(f'{prefix} Items: ')
+    for letter in items:
+        print(letter, end='', flush=True)
+        time.sleep(0.15)
+    print('\n\n')
 
 # Game
-def buckshotRoulette(client=None):
+def buckshotRoulette(machine=None):
     match mode:
         case 'host':
-            for user in connectedUsers:
+            for userIndex in range(len(connectedUsers)):
                 items = []
                 for __ in range(4):
                     item = random.choice(itemList)
                     items.append(item)
                 print(items)
-                user.send(pickle.dumps(items))
+                for user in connectedUsers:
+                    user.send(pickle.dumps(f'{connectedAddrs[userIndex]}|items|{', '.join(items)}'))
+                    time.sleep(1)
         case 'join':
+            clearScreen()
             while True:
-                message = client.recv(2048)
+                while True:
+                    break
+                message = machine.recv(2048)
                 if message == b'': pass
-                print(pickle.loads(message))
+                if pickle.loads(message) == '/DISCONNECT':
+                    break
+                message = pickle.loads(message)
+                if '|items|' in message:
+                    showItems(message)
+            print("The requested server is full.")
 
 
 # Main Menu
@@ -88,15 +105,8 @@ match mode:
     case 'join':
         client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         client.connect((input("Enter the IP address of the server: "), 5050))
-        sendMessage(client, "Hello")
         buckshotRoulette(client)
-        while True:
-            message = client.recv(2048)
-            if message == b'/DISCONNECT':
-                break
-        print("The requested server is full.")
     case 'host':
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server.bind((getIPAddress(), 5050))
         startHosting(server)
-        buckshotRoulette()

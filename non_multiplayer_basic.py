@@ -105,7 +105,7 @@ def SelectItem(player_1_items, player_2_items, player):
 
 def UseItem(item, gun, player_health, player_items, shot):
     if item == 'Beer':
-        ejected = gun.pop()
+        ejected = gun.pop() if len(gun) > 0 else shot
         print(f"Ejected Shell was {'Live' if ejected == 1 else 'Blank'} ")
     elif item == 'Burner Phone':
         position = random.randint(0, len(gun))

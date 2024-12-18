@@ -4,7 +4,7 @@ import socket, threading, os, random, pickle, time
 # Variables
 localHostname = socket.gethostname()
 socket.gethostbyname(localHostname)
-itemList = ['Beer', 'Burner Phone', 'Cigaratte', 'Medicine', 'Saw', 'Inverter', 'Magnifying Glass']
+itemList = ['Beer', 'Burner Phone', 'Cigarette', 'Medicine', 'Saw', 'Inverter', 'Magnifying Glass']
 connectedUsers, connectedAddrs = [], []
 
 # Functions
@@ -44,41 +44,71 @@ def handleClient(connection, addr):
     connected = True
 
     while connected:
-        msg_length = connection.recv(2048).decode('utf-8')
-        if msg_length:
-            msg_length = int(msg_length)
-            msg = connection.recv(msg_length).decode('utf-8')
-            print(f"[{addr[0]}:{addr[1]}]: {msg}")
+        msg = pickle.loads(connection.recv(2048))
+        print(msg if 'requestItemUse' in msg else "")
 
     connection.close()
 
-def sendMessage(computer, content):
+def sendMessage(content):
     client.sendall(pickle.dumps(content))
+
+def removePrefixFromMessage(message, header):
+    while f'|{header}|' in message:
+            message = message[1:]
+    message = message.lstrip(f'|{header}|')
+    return message
 
 def showItems(items):
     prefix = "Your" if items.startswith(f'{client.getsockname()[0]}:{client.getsockname()[1]}') else "Your Opponent's"
-    while '|items|' in items:
-            items = items[1:]
-    items = items.lstrip('|items|')
-    print(f'{prefix} Items: ')
-    for letter in items:
-        print(letter, end='', flush=True)
-        time.sleep(0.15)
-    print('\n\n')
+    items = f'{prefix} Items: ' + removePrefixFromMessage(items, 'items')
+    print(items)
+    print('\n')
+
+def handleInput(message):
+    prefix = "your" if message.startswith(f'{client.getsockname()[0]}:{client.getsockname()[1]}') else "your opponent's"
+    timeLimit = removePrefixFromMessage(message, 'turn')
+    print(f"It is {prefix} turn.")
+    if prefix == 'your':
+        while True:
+            userInput = str.title(input("Type 'shoot' to shoot, or type the name of an item to use it.\n\n"))
+            if round(time.time()) > int(timeLimit):
+                print("You took too long to choose an option!")
+                break
+            match userInput:
+                case 'Shoot':
+                    pass
+                case userInput if userInput in itemList:
+                    sendMessage(f'server|requestItemUse|{userInput}')
+    print('\n')
 
 # Game
 def buckshotRoulette(machine=None):
     match mode:
         case 'host':
+            # Items
+
+            userItems = []
             for userIndex in range(len(connectedUsers)):
                 items = []
                 for __ in range(4):
                     item = random.choice(itemList)
                     items.append(item)
                 print(items)
+                userItems.append(items)
                 for user in connectedUsers:
                     user.send(pickle.dumps(f'{connectedAddrs[userIndex]}|items|{', '.join(items)}'))
-                    time.sleep(1)
+                    time.sleep(0.5)
+
+            # Game Loop
+
+            recievedInput = True
+            while True and recievedInput:
+                recievedInput = False
+                turn = 0
+                for user in connectedUsers:
+                    user.send(pickle.dumps(f'{connectedAddrs[turn]}|turn|{round(time.time()) + 30}'))
+
+
         case 'join':
             clearScreen()
             while True:
@@ -91,6 +121,8 @@ def buckshotRoulette(machine=None):
                 message = pickle.loads(message)
                 if '|items|' in message:
                     showItems(message)
+                elif '|turn|' in message:
+                    handleInput(message)
             print("The requested server is full.")
 
 
